@@ -1,149 +1,316 @@
-[![Code Climate](https://codeclimate.com/github/Arubacloud/pyArubaCloud/badges/gpa.svg)](https://codeclimate.com/github/Arubacloud/pyArubaCloud)
+# pyArubaCloud
 
-Python Interface for ArubaCloud IaaS Service. This is an early-stage release, not every features has been covered.
+[![PyPI version](https://badge.fury.io/py/pyarubacloud.svg)](https://badge.fury.io/py/pyarubacloud)
+[![Python Versions](https://img.shields.io/pypi/pyversions/pyarubacloud.svg)](https://pypi.org/project/pyarubacloud/)
+[![License](https://img.shields.io/github/license/Arubacloud/pyArubaCloud.svg)](https://github.com/Arubacloud/pyArubaCloud/blob/master/LICENSE.txt)
 
-This project is under development, the classes, methods and parameters might change over time. This README usually reflects the syntax of the latest version.
+Python Interface for ArubaCloud IaaS Service. This library provides a clean and modern interface to interact with the ArubaCloud API.
 
-# Getting Started
 ## Installation
-Python Package:
-```
+
+### From PyPI
+
+```bash
 pip install pyarubacloud
 ```
 
-Git Version:
-```
-git clone https://github.com/Arubacloud/pyArubaCloud.git pyArubaCloud
+### From Source
+
+```bash
+git clone https://github.com/Arubacloud/pyArubaCloud.git
 cd pyArubaCloud
-python setup.py install
+pip install -e .
 ```
 
-## Usage
-In the examples folder you can find some examples on various operations which can be done via API.
+## Quick Start
 
-### Log in to the service
-``` python
-from ArubaCloud.PyArubaAPI import CloudInterface
+```python
+from pyarubacloud import Client
 
-ci = CloudInterface(dc=1)
-ci.login(username="XXX-XXXX", password="XXXXXXXX", load=True)
-```
-Once you have instantiated CloudInterface object by specifying the number of the datacenter(1 to 6), keeping in mind this association:
-- 1 -> DC1 -> Italy 1
-- 2 -> DC2 -> Italy 2
-- 3 -> DC3 -> Czech Republic
-- 4 -> DC4 -> France
-- 5 -> DC5 -> Germany
-- 6 -> DC6 -> UK
-- 7 -> DC7 -> Italy 3
-- 8 -> DC8 -> Poland
+# Initialize the client
+client = Client(datacenter=1)  # DC1 = Italy 1
+client.auth.login(username="YOUR_USERNAME", password="YOUR_PASSWORD")
 
-You can login with your username and password (i.e. AWI-19054), `load` parameter is used to cache all of the data related to the account (within the datacenter) at the login phase.
+# List all VMs
+vms = client.compute.vm.list()
+for vm in vms:
+    print(f"VM: {vm.name}, Status: {vm.status}")
 
-### Retrieve all templates related to a hypervisor
-You have the following 4 types of hypervisors to choose from:
-- 1 -> Microsoft Hyper-V - Cloud Pro
-- 2 -> VMWare - Cloud Pro
-- 3 -> Microsoft Hyper-V Low Cost - Cloud Pro
-- 4 -> VMWare - Cloud Smart
+# Create a Pro VM
+vm = client.compute.vm.create_pro(
+    name="my-vm",
+    template_id=1234,
+    admin_password="password",
+    cpu=2,
+    ram=4,
+    disks=[20, 40],
+    public_ip=True
+)
 
-Assuming that we want to list every template that contains Debian in the Description for hypervisor 4 in Datacenter 2, the code will be the following:
-``` python
-from ArubaCloud.PyArubaAPI import CloudInterface
+# Power on the VM
+vm.power_on()
 
-ci = CloudInterface(dc=1)
-ci.login(username="XXX-XXXX", password="XXXXXXXX", load=True)
-ci.get_hypervisors()
-
-from pprint import pprint
-pprint(ci.find_template(name='Debian', hv=4))
-```
-When you select a template to create a new machine the template has to be enabled. In the result of find_template you can check if a template is enabled.
-```
-[Template Name: Debian 5 32bit, Hypervisor: SMART, Id: 959, Enabled: False,
- Template Name: Debian 5 64bit, Hypervisor: SMART, Id: 960, Enabled: False,
- Template Name: Debian 6 32bit, Hypervisor: SMART, Id: 961, Enabled: False,
- Template Name: Debian 6 64bit, Hypervisor: SMART, Id: 962, Enabled: False,
- Template Name: Debian 7 64bit, Hypervisor: SMART, Id: 1114, Enabled: True,
- Template Name: Debian 7 32bit, Hypervisor: SMART, Id: 1115, Enabled: True,
- Template Name: Debian 8 64bit, Hypervisor: SMART, Id: 1723, Enabled: True]
-```
-### Create a new VM
-In order to create a VM you have to instantiate the specific object exposed by the ArubaCloud.objects package:
-- ProVmCreator
-- SmartVmCreator
-
-About Pro VMs, you can choose from a large number of customizations, such as, number of cpu, ram quantity, number and size of virtual disks, public IPs, private IPs and so on.
-
-Smart Servers are not customizable (this reflects the behaviour of the service itself), but you can choose 4 different sizes:
-- Small
-- Medium
-- Large
-- Extra Large
-
-#### Example of how to create a Pro VM
-``` python
-from ArubaCloud.PyArubaAPI import CloudInterface
-from ArubaCloud.objects import ProVmCreator
-
-ci = CloudInterface(dc=1)
-ci.login(username="XXX-XXXX", password="XXXXXXXX", load=True)
-
-ip = ci.purchase_ip()
-
-# template_id: 1605 [Template Name: CentOS 7.x 64bit, Hypervisor: VW, Id: 1605, Enabled: True]
-c = ProVmCreator(name='debian01', admin_password='MyStrongPassword', template_id='1605', auth_obj=ci.auth)
-c.set_cpu_qty(2)
-c.set_ram_qty(6)
-  
-c.add_public_ip(public_ip_address_resource_id=ip.resid)
-c.add_virtual_disk(20)
-c.add_virtual_disk(40)
-
-print(c.commit(url=ci.wcf_baseurl, debug=True))
+# Delete the VM
+vm.delete()
 ```
 
-#### Example of how to create a Smart VM
-``` python
-from ArubaCloud.PyArubaAPI import CloudInterface
-from ArubaCloud.objects import SmartVmCreator
+## Datacenter Locations
 
-ci = CloudInterface(dc=1)
-ci.login(username="XXX-XXXX", password="XXXXXXXX", load=True)
+When initializing the client, you need to specify the datacenter location:
 
-# template_id: 1114 [Hypervisor: SMART (Debian 7 - 64bit)]
-c = SmartVmCreator(name='small01', admin_password='MyStrongPassword', template_id=1114, auth_obj=ci.auth)
-c.set_type(ci.get_package_id('small'))
+- 1: DC1 - Italy 1
+- 2: DC2 - Italy 2
+- 3: DC3 - Czech Republic
+- 4: DC4 - France
+- 5: DC5 - Germany
+- 6: DC6 - UK
+- 7: DC7 - Italy 3
+- 8: DC8 - Poland
 
-print(c.commit(url=ci.wcf_baseurl, debug=True))
+```python
+from pyarubacloud import Client
+from pyarubacloud.constants import DatacenterLocation
+
+# Using the enum
+client = Client(datacenter=DatacenterLocation.ITALY_1)
+
+# Or using the integer value
+client = Client(datacenter=1)
 ```
 
-#### Example of how to set a SSH key
-``` python
-c.set_ssh_key('your_public_key.pub')
+## Features
+
+### Virtual Machines
+
+#### Pro VMs
+
+```python
+# Create a Pro VM
+vm = client.compute.vm.create_pro(
+    name="my-vm",
+    template_id=1234,
+    admin_password="password",
+    cpu=2,
+    ram=4,
+    disks=[20, 40],
+    public_ip=True,
+    ssh_key_path="~/.ssh/id_rsa.pub"  # Optional
+)
+
+# Edit CPU
+client.compute.vm.edit_cpu(vm.id, 4)
+
+# Edit RAM
+client.compute.vm.edit_ram(vm.id, 8)
+
+# Add a disk
+client.compute.vm.add_disk(vm.id, 100)
+
+# Remove a disk
+client.compute.vm.remove_disk(vm.id, 1)  # Disk ID
 ```
 
-#### Example to use ReverseDns
-``` python
+#### Smart VMs
 
-from ArubaCloud.PyArubaAPI import CloudInterface
-from ArubaCloud.ReverseDns import ReverseDns
+```python
+# Create a Smart VM
+vm = client.compute.vm.create_smart(
+    name="my-vm",
+    template_id=1234,
+    admin_password="password",
+    package="small",  # small, medium, large, extralarge
+    ssh_key_path="~/.ssh/id_rsa.pub"  # Optional
+)
 
-ci = CloudInterface(dc=1)
-rdns = ReverseDns.ReverseDns(username='XXXXXX', password='XXXXX', ws_uri=ci.wcf_baseurl)
+# Upgrade a Smart VM
+client.compute.vm.upgrade(vm.id, "medium")
 
-# get configured reverse dns
-print(rdns.get(addresses=['XXX.XXX.XXX.XXX']))
-
-# set a new reverse dns with one or more PTR hosts
-#print(rdns.set(address='XXX.XXX.XXX.XXX', host_name=['xxxx.domain.com', 'xxxx2.domain.com']))
-
-# reset a reverse dns
-#print(rdns.reset(addresses=['XXX.XXX.XXX.XXX']))
+# Reinitialize a Smart VM
+client.compute.vm.reinitialize(vm.id, "new_password", template_id=5678)
 ```
 
-More examples can be found in the [examples folder](https://github.com/Arubacloud/pyArubaCloud/tree/master/examples), following the complete list:
-- [Delete a VM](https://github.com/Arubacloud/pyArubaCloud/blob/master/examples/delete_vm.py)
-- [Edit Pro VM Hardware](https://github.com/Arubacloud/pyArubaCloud/blob/master/examples/edit_vm_hardware.py)
-- [Manage VLAN (add, attach, deattach, remove)](https://github.com/Arubacloud/pyArubaCloud/blob/master/examples/manage_vswitch.py)
-- [Reinitialize Smart VM](https://github.com/Arubacloud/pyArubaCloud/blob/master/examples/reinitialize.py)
+### IP Addresses
+
+```python
+# List all IPs
+ips = client.compute.ip.list()
+
+# Purchase a new IP
+ip = client.compute.ip.purchase()
+
+# Assign an IP to a VM
+client.compute.ip.assign(ip.resource_id, vm.id)
+
+# Unassign an IP
+client.compute.ip.unassign(ip.resource_id)
+
+# Release an IP
+client.compute.ip.release(ip.resource_id)
+```
+
+### Templates
+
+```python
+# List all templates
+templates = client.compute.template.list()
+
+# Find templates by name
+debian_templates = client.compute.template.find_by_name("Debian")
+
+# Find templates by hypervisor
+smart_templates = client.compute.template.find_by_hypervisor(4)  # 4 = Smart
+
+# Find enabled templates
+enabled_templates = client.compute.template.find_enabled()
+```
+
+### VLANs
+
+```python
+# List all VLANs
+vlans = client.compute.vlan.list()
+
+# Create a VLAN
+vlan = client.compute.vlan.create("my-vlan")
+
+# Attach a VLAN to a VM
+client.compute.vlan.attach(
+    vlan.resource_id,
+    vm.id,
+    network_adapter_id=1,
+    ip="192.168.1.10",
+    subnet_mask="255.255.255.0",
+    gateway="192.168.1.1"
+)
+
+# Detach a VLAN from a VM
+client.compute.vlan.detach(vlan.resource_id, vm.id, network_adapter_id=1)
+
+# Delete a VLAN
+client.compute.vlan.delete(vlan.resource_id)
+```
+
+### Load Balancers
+
+```python
+# List all load balancers
+load_balancers = client.loadbalancer.list()
+
+# Create a load balancer
+lb = client.loadbalancer.create("my-lb")
+
+# Add a rule
+rule = client.loadbalancer.add_rule(
+    lb.id,
+    name="http",
+    protocol=1,  # TCP
+    port=80,
+    balancer_port=80,
+    balancer_protocol=1,  # TCP
+    instance_port=80,
+    instance_protocol=1  # TCP
+)
+
+# Power on a load balancer
+client.loadbalancer.power_on(lb.id)
+
+# Power off a load balancer
+client.loadbalancer.power_off(lb.id)
+
+# Delete a load balancer
+client.loadbalancer.delete(lb.id)
+```
+
+### Reverse DNS
+
+```python
+# Get a reverse DNS entry
+rdns = client.reversedns.get("1.2.3.4")
+
+# Set a reverse DNS entry
+client.reversedns.set("1.2.3.4", ["example.com"])
+
+# Reset a reverse DNS entry
+client.reversedns.reset("1.2.3.4")
+```
+
+### Shared Storage
+
+```python
+# List all shared storages
+storages = client.sharedstorage.list()
+
+# Create a shared storage
+storage = client.sharedstorage.create(
+    name="my-storage",
+    size=100,
+    protocol_type=1  # 1 = iSCSI, 2 = NFS
+)
+
+# Add an IQN
+iqn = client.sharedstorage.add_iqn(
+    storage.id,
+    "iqn.2005-03.org.open-iscsi:01:11ecf02e86f7"
+)
+
+# Delete a shared storage
+client.sharedstorage.delete(storage.id)
+```
+
+## Advanced Usage
+
+### Caching
+
+The client automatically caches API responses to improve performance. You can clear the cache at any time:
+
+```python
+# Clear the entire cache
+client.clear_cache()
+```
+
+### Logging
+
+You can enable debug logging to see detailed information about API requests and responses:
+
+```python
+import logging
+from pyarubacloud import Client
+
+# Enable debug logging
+client = Client(datacenter=1, config={"debug": True})
+
+# Or configure logging manually
+logging.basicConfig(level=logging.DEBUG)
+```
+
+### Custom Configuration
+
+You can customize the client configuration:
+
+```python
+from pyarubacloud import Client
+from pyarubacloud.config import Config
+
+config = Config(
+    timeout=120,  # Request timeout in seconds
+    cache_ttl=600,  # Cache time-to-live in seconds
+    max_retries=5,  # Maximum number of retry attempts
+    retry_delay=2.0,  # Initial delay between retries in seconds
+    retry_backoff=2.0,  # Backoff multiplier for retries
+    debug=True  # Enable debug logging
+)
+
+client = Client(datacenter=1, config=config)
+```
+
+## Migrating from v0.x
+
+If you're migrating from v0.x of the library, please refer to the [Migration Guide](https://github.com/Arubacloud/pyArubaCloud/blob/master/migration_guide.md) for detailed instructions.
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## License
+
+This project is licensed under the Apache License 2.0 - see the [LICENSE.txt](https://github.com/Arubacloud/pyArubaCloud/blob/master/LICENSE.txt) file for details.
